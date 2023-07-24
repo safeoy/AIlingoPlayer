@@ -1,32 +1,63 @@
 <template>
   <div>
-    <input type="file" accept="audio/mpeg" @change="handleFileSelect">
-    <audio ref="audioPlayer" @timeupdate="updateLyricsDisplay"></audio>
-    <button @click="play">播放</button>
-    <button @click="pause">暂停</button>
+    <audio id="player" playsinline controls ></audio>
+    <input type="file" accept="audio/mp3" @change="handleFileSelect">
+    OpenAI API key:
+    <input type="text" v-model="apiKey" placeholder="sk-xxxx">
+    <button @click="generateLyrics">生成字幕</button>
     <div>{{ lyrics }}</div>
   </div>
 </template>
 
 <script>
 
+import Plyr from 'plyr';
+
+const player = new Plyr('#player', {captions: {active: true}});
+
 export default {
+  mounted() {
+    this.player = new Plyr('#player', {
+      /* options */
+    });
+  },
+  beforeDestroy() {
+    // 销毁播放器实例
+    this.player.destroy();
+  },
   data() {
     return {
-      lyricsUrl: '', // 存储生成的歌词文件的 URL
       lyrics: '', // 存储歌词内容
+      lyricsUrl:'',
+      file:'',
+      fileUrl:'',
+      apiKey: '',
     };
+  },
+  watch: {
+    apiKey(newValue) {
+      localStorage.setItem('apiKey', newValue);
+    },
+  },
+  created() {
+    this.apiKey = localStorage.getItem('apiKey') || '';
   },
   methods: {
     handleFileSelect(event) {
-      const file = event.target.files[0];
-      const fileUrl = URL.createObjectURL(file);
-      this.$refs.audioPlayer.src = fileUrl; 
-
-      // 调用 OpenAI 语音接口，生成歌词文件的 URL 或内容，并将其设置给 lyricsUrl 变量
-      this.generateLyrics(file)
+      this.file = event.target.files[0];
+      this.fileUrl = URL.createObjectURL(this.file);
+      this.player.source = {
+          type: 'audio',
+          title: 'Example title',
+          sources: [
+            {
+              src: this.fileUrl,
+              type: 'audio/mp3',
+            }
+          ],
+        };
     },
-    generateLyrics(file) {
+    generateLyrics() {
       const url = 'https://api.openai.com/v1/audio/transcriptions'
 
       const transcribe = (apiKey, file, language, response_format) => {
@@ -56,35 +87,20 @@ export default {
           }).catch(error => console.error(error))
       }
 
-      const apiKey = ''
       const language = 'en'
       const response_format = 'srt'
-      const response = transcribe(apiKey, file, language, response_format)
+      const response = transcribe(this.apiKey, this.file, language, response_format)
 
       response.then(transcription => {
-          if (response_format === 'verbose_json') {
-              //setTranscribedSegments(transcription.segments)
-              this.lyrics = transcription
-          } else {
-              //setTranscribedPlainText(transcription)
-              this.lyrics = transcription
-          }
-
-          // Allow multiple uploads without refreshing the page
-          fileInput.value = null
-      })
-      
-    },
-    play() {
-      this.$refs.audioPlayer.play();
-    },
-    pause() {
-      this.$refs.audioPlayer.pause();
-    },
-    updateLyricsDisplay() {
-      // 根据音频的播放时间，更新当前应该显示的歌词部分
-      // ...
-    },
+          this.lyrics = transcription
+          let blob = new Blob([this.lyrics], { type: 'text/plain' });
+          const lyricsUrl = URL.createObjectURL(blob);
+      });
+    }
   },
 };
 </script>
+
+<style>
+@import "plyr/dist/plyr.css";
+</style>
