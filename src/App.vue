@@ -1,10 +1,11 @@
 <template>
   <div>
-    <audio id="player" playsinline controls ></audio>
+    <audio id="player"  playsinline controls ></audio>
     <input type="file" accept="audio/mp3" @change="handleFileSelect">
     OpenAI API key:
     <input type="text" v-model="apiKey" placeholder="sk-xxxx">
     <button @click="generateLyrics">生成字幕</button>
+    <p>{{ currentSubtitle }}</p>
     <div>{{ lyrics }}</div>
   </div>
 </template>
@@ -12,6 +13,7 @@
 <script>
 
 import Plyr from 'plyr';
+import { WebVTT } from 'vtt.js';
 
 const player = new Plyr('#player', {captions: {active: true}});
 
@@ -20,6 +22,7 @@ export default {
     this.player = new Plyr('#player', {
       /* options */
     });
+    //this.parseSubtitles();
   },
   beforeDestroy() {
     // 销毁播放器实例
@@ -27,11 +30,13 @@ export default {
   },
   data() {
     return {
-      lyrics: '', // 存储歌词内容
+      lyrics: 'loading', // 存储歌词内容
       lyricsUrl:'',
       file:'',
       fileUrl:'',
       apiKey: '',
+      cues: [],
+      currentSubtitle: 'loading',
     };
   },
   watch: {
@@ -43,6 +48,27 @@ export default {
     this.apiKey = localStorage.getItem('apiKey') || '';
   },
   methods: {
+    parseSubtitles() {
+      let parser = new WebVTT.Parser(window, WebVTT.StringDecoder());
+      parser.oncue = cue => {
+        this.cues.push(cue);
+      };
+      parser.parse(this.lyrics);
+      parser.flush();
+
+      this.player.on('timeupdate', (event) => {
+        this.updateSubtitle();
+      });
+    },
+    updateSubtitle() {
+      console.log("updateSubtitle:"+this.player.currentTime);
+      let currentTime = this.player.currentTime;
+      let currentCue = this.cues.find(cue => currentTime >= cue.startTime && currentTime <= cue.endTime);
+      console.log("currentCue:"+ currentCue.startTime);
+      console.log("currentCue:"+ currentCue.endTime);
+      console.log("currentCue:"+ currentCue.text);
+      this.currentSubtitle = currentCue ? currentCue.text : '';
+    },
     handleFileSelect(event) {
       this.file = event.target.files[0];
       this.fileUrl = URL.createObjectURL(this.file);
@@ -88,13 +114,14 @@ export default {
       }
 
       const language = 'en'
-      const response_format = 'srt'
+      const response_format = 'vtt'
       const response = transcribe(this.apiKey, this.file, language, response_format)
 
       response.then(transcription => {
           this.lyrics = transcription
           let blob = new Blob([this.lyrics], { type: 'text/plain' });
           const lyricsUrl = URL.createObjectURL(blob);
+          this.parseSubtitles();
       });
     }
   },
