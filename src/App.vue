@@ -1,13 +1,57 @@
 <template>
+  <div class="navbar bg-base-100">
+    <div class="navbar-start">
+      <div class="dropdown">
+        <label tabindex="0" class="btn btn-ghost lg:hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" /></svg>
+        </label>
+      </div>
+      <a class="btn btn-ghost normal-case text-xl">AIlingoPlayer</a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      
+    </div>
+    <div class="navbar-end">
+      <button class="btn" onclick="my_modal_1.showModal()">Setting</button>
+      <dialog id="my_modal_1" class="modal">
+        <form method="dialog" class="modal-box">
+          <h3 class="font-bold text-lg">OpenAI Key</h3>
+          <input type="text" v-model="apiKey" placeholder="sk-xxxx" class="input input-bordered w-full max-w-xs" />
+          <div class="modal-action">
+            <!-- if there is a button in form, it will close the modal -->
+            <button class="btn">Save</button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+  </div>
+  
   <div>
     <audio id="player"  playsinline controls ></audio>
-    <input type="file" accept="audio/mp3" @change="handleFileSelect">
-    OpenAI API key:
-    <input type="text" v-model="apiKey" placeholder="sk-xxxx">
-    <button @click="generateLyrics">生成字幕</button>
-    <p>{{ currentSubtitle }}</p>
-    <div>{{ lyrics }}</div>
   </div>
+  
+  <!-- <div class="form-control w-full max-w-xs">
+    <label class="label">
+      <span class="label-text">OpenAI Key</span>
+    </label>
+    <input type="text" v-model="apiKey" placeholder="sk-xxxx" class="input input-bordered w-full max-w-xs" />
+  </div> -->
+  <div>
+    <input type="file" accept="audio/mp3" class="file-input w-full max-w-xs" @change="handleFileSelect">
+  </div>
+  <div>
+    <button class="btn" @click="generateLyrics">生成字幕</button>
+  </div>
+  <div className="card w-96 bg-base-100 shadow-xl">
+  <div className="card-body">
+    <div className="card-actions justify-end">
+      <button className="btn btn-square btn-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
+    </div>
+    <p>{{ currentSubtitle }}</p>
+  </div>
+</div>
 </template>
 
 <script>
