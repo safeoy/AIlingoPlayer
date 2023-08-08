@@ -1,58 +1,90 @@
 <template>
-  <div class="navbar bg-base-100">
-    <div class="navbar-start">
-      <div class="dropdown">
-        <label tabindex="0" class="btn btn-ghost lg:hidden">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" /></svg>
-        </label>
-      </div>
-      <a class="btn btn-ghost normal-case text-xl">AIlingoPlayer</a>
-    </div>
-    <div class="navbar-center hidden lg:flex">
-      
-    </div>
-    <div class="navbar-end">
-      <button class="btn" onclick="my_modal_1.showModal()">Setting</button>
-      <dialog id="my_modal_1" class="modal">
-        <form method="dialog" class="modal-box">
-          <h3 class="font-bold text-lg">OpenAI Key</h3>
-          <input type="text" v-model="apiKey" placeholder="sk-xxxx" class="input input-bordered w-full max-w-xs" />
-          <div class="modal-action">
-            <!-- if there is a button in form, it will close the modal -->
-            <button class="btn">Save</button>
-          </div>
-        </form>
-      </dialog>
-    </div>
-  </div>
-  
-  <div>
-    <audio id="player"  playsinline controls ></audio>
-  </div>
-  
-  <!-- <div class="form-control w-full max-w-xs">
-    <label class="label">
-      <span class="label-text">OpenAI Key</span>
-    </label>
-    <input type="text" v-model="apiKey" placeholder="sk-xxxx" class="input input-bordered w-full max-w-xs" />
-  </div> -->
-  <div>
-    <input type="file" accept="audio/mp3" class="file-input w-full max-w-xs" @change="handleFileSelect">
-  </div>
-  <div>
-    <button class="btn" @click="generateLyrics">生成字幕</button>
-  </div>
-  <div className="card w-96 bg-base-100 shadow-xl">
-  <div className="card-body">
-    <div className="card-actions justify-end">
-      <button className="btn btn-square btn-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-      </button>
-    </div>
-    <p>{{ currentSubtitle }}</p>
-  </div>
-</div>
+  <a-layout style="min-height: 100vh">
+    <a-layout-sider v-model:collapsed="collapsed" collapsible>
+      <!-- <div class="logo" /> -->
+      <a-menu v-model:selectedKeys="selectedKeys" theme="dark" mode="inline">
+        <a-menu-item key="1">
+          <pie-chart-outlined />
+          <span>Logo</span>
+        </a-menu-item>
+        <a-menu-item key="9" onclick="my_modal_1.showModal()">
+          <file-outlined />
+          <span>设置</span>
+          <dialog id="my_modal_1" class="modal">
+            <form method="dialog" class="modal-box">
+              <h3 class="font-bold text-lg">OpenAI Key</h3>
+              <input type="text" v-model="apiKey" placeholder="sk-xxxx" class="input input-bordered w-full max-w-xs" />
+              <div class="modal-action">
+                <!-- if there is a button in form, it will close the modal -->
+                <button class="btn">Save</button>
+              </div>
+            </form>
+          </dialog>
+        </a-menu-item>
+      </a-menu>
+    </a-layout-sider>
+    <a-layout style="background: #141414;">
+      <a-row>
+        <!-- 左边部分 -->
+        <a-col :span="12">
+          <!-- 上面部分：播放器 -->
+          <a-layout-content style="margin: 0 16px; background: #141414;">
+            <div>
+              <audio id="player" playsinline controls></audio>
+            </div>
+          </a-layout-content>
+
+          <!-- 下面部分：文件选择和按钮 -->
+          <a-layout-content style="margin: 16px;">
+            <div>
+              <input type="file" accept="audio/mp3" class="file-input w-full max-w-xs" @change="handleFileSelect">
+            </div>
+            <div style="margin-top: 16px;">
+              <button class="btn" @click="generateLyrics">生成字幕</button>
+            </div>
+          </a-layout-content>
+        </a-col>
+        <!-- 右边部分：显示字幕 -->
+        <a-col :span="12">
+          <a-layout-content style="margin: 0 16px; padding: 16px; overflow: auto;">
+            <p 
+              v-for="cue in cues" 
+              :key="cue.id"
+              :class="{ 'highlighted': isCurrentCue(cue) }"
+              @click="seekToCue(cue)"
+            >
+              {{ cue.text }}
+            </p>
+          </a-layout-content>
+        </a-col>
+
+      </a-row>
+    </a-layout>
+  </a-layout>
 </template>
+
+<style >
+@import "plyr/dist/plyr.css";
+#components-layout-demo-side .logo {
+  height: 32px;
+  margin: 16px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.site-layout .site-layout-background {
+  background: #fff;
+}
+[data-theme='dark'] .site-layout .site-layout-background {
+  background: #141414;
+}
+
+.highlighted {
+  color: #ff0000;  /* 你可以选择你喜欢的颜色 */
+  font-weight: bold;
+}
+
+
+</style>
 
 <script>
 
@@ -81,6 +113,7 @@ export default {
       apiKey: '',
       cues: [],
       currentSubtitle: 'loading',
+      currentPlayTime: 0,
     };
   },
   watch: {
@@ -101,6 +134,7 @@ export default {
       parser.flush();
 
       this.player.on('timeupdate', (event) => {
+        this.currentPlayTime = this.player.currentTime;
         this.updateSubtitle();
       });
     },
@@ -167,11 +201,19 @@ export default {
           const lyricsUrl = URL.createObjectURL(blob);
           this.parseSubtitles();
       });
-    }
+    },
+    seekToCue(cue) {
+      this.player.currentTime = cue.startTime;
+    },
+    isCurrentCue(cue) {
+      let isCurrent = this.currentPlayTime >= cue.startTime && this.currentPlayTime <= cue.endTime;
+  
+      if (isCurrent) {
+        console.log('Current Cue:', cue.text);
+      }
+      
+      return isCurrent;
+    },
   },
 };
 </script>
-
-<style>
-@import "plyr/dist/plyr.css";
-</style>
