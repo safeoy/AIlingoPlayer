@@ -42,6 +42,14 @@
             <div style="margin-top: 16px;">
               <button class="btn" @click="generateLyrics">生成字幕</button>
             </div>
+            <!-- 文件上传组件 -->
+            <a-upload :before-upload="handleUpload" :show-upload-list="false">
+              <a-button>
+                <icon type="upload" /> 上传MP3文件
+              </a-button>
+            </a-upload>
+            <!-- 文件列表表格 -->
+            <a-table :data-source="fileList" :columns="columns"></a-table>
           </a-layout-content>
         </a-col>
         <div class="vertical-divider"></div>
@@ -121,6 +129,23 @@ export default {
       cues: [],
       currentSubtitle: 'loading',
       currentPlayTime: 0,
+      fileList: [], // 存储文件列表
+      columns: [ // 表格列的配置
+        {
+          title: '文件名',
+          dataIndex: 'name',
+        },
+        {
+          title: '操作',
+          dataIndex: 'action',
+          render: (text, record) => {
+            return h('span', [
+              h('a-button', { onClick: () => this.handleDelete(record) }, '删除'),
+              h('a-button', { onClick: () => this.handlePlay(record) }, '播放')
+            ]);
+          },
+        },
+      ],
     };
   },
   watch: {
@@ -220,6 +245,24 @@ export default {
       }
       
       return isCurrent;
+    },
+    handleUpload(file) {
+      // 将文件存储到浏览器的 storage
+      const fileURL = URL.createObjectURL(file);
+      this.fileList.push({
+        key: file.uid,
+        name: file.name,
+        url: fileURL,
+      });
+      return false; // 阻止文件上传到服务器
+    },
+    handleDelete(record) {
+      this.fileList = this.fileList.filter(item => item.key !== record.key);
+    },
+    handlePlay(record) {
+      const audio = document.getElementById('player');
+      audio.src = record.url;
+      audio.play();
     },
   },
 };
