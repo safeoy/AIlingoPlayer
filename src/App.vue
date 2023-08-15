@@ -43,13 +43,20 @@
               <button class="btn" @click="generateLyrics">生成字幕</button>
             </div>
             <!-- 文件上传组件 -->
-            <a-upload :before-upload="handleUpload" :show-upload-list="false">
+            <a-upload :before-upload="handleUpload" :show-upload-list="false" style="background: darkgrey;">
               <a-button>
-                <icon type="upload" /> 上传MP3文件
+                <upload-outlined></upload-outlined> 上传MP3文件
               </a-button>
             </a-upload>
             <!-- 文件列表表格 -->
-            <a-table :data-source="fileList" :columns="columns"></a-table>
+            <a-table :data-source="fileList">
+                <a-table-column title="文件名" dataIndex="name" key="name"></a-table-column>
+                <a-table-column title="操作" key="action" v-slot="{ record }">
+                    <template v-for="(action, index) in fileListActions" :key="index">
+                        <a-button @click="this[action.action](record)">{{ action.text }}</a-button>
+                    </template>
+                </a-table-column>
+            </a-table>
           </a-layout-content>
         </a-col>
         <div class="vertical-divider"></div>
@@ -105,10 +112,21 @@
 
 import Plyr from 'plyr';
 import { WebVTT } from 'vtt.js';
+import { PieChartOutlined } from '@ant-design/icons-vue';
+import { UploadOutlined } from '@ant-design/icons-vue';
+import { FileOutlined } from '@ant-design/icons-vue';
+import { Button as AButton } from 'ant-design-vue';
+
 
 const player = new Plyr('#player', {captions: {active: true}});
 
 export default {
+  components: {
+    PieChartOutlined,
+    UploadOutlined,
+    FileOutlined,
+    AButton,
+  },
   mounted() {
     this.player = new Plyr('#player', {
       /* options */
@@ -123,6 +141,8 @@ export default {
     return {
       lyrics: 'loading', // 存储歌词内容
       lyricsUrl:'',
+      collapsed:true,
+      selectedKeys:[],
       file:'',
       fileUrl:'',
       apiKey: '',
@@ -139,12 +159,17 @@ export default {
           title: '操作',
           dataIndex: 'action',
           render: (text, record) => {
+            console.log("render");
             return h('span', [
-              h('a-button', { onClick: () => this.handleDelete(record) }, '删除'),
-              h('a-button', { onClick: () => this.handlePlay(record) }, '播放')
+              h('AButton', { onClick: () => this.handleDelete(record) }, '删除'),
+              h('AButton', { onClick: () => this.handlePlay(record) }, '播放')
             ]);
           },
         },
+      ],
+      fileListActions: [
+          { text: '删除', action: 'handleDelete' },
+          { text: '播放', action: 'handlePlay' }
       ],
     };
   },
