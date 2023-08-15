@@ -24,18 +24,18 @@
       </a-menu>
     </a-layout-sider>
     <a-layout style="background: #141414;">
-      <a-row>
+      <a-row style="min-height: 100vh;">
         <!-- 左边部分 -->
         <a-col :span="12">
           <!-- 上面部分：播放器 -->
-          <a-layout-content style="margin: 0 16px; background: #141414;">
+          <a-layout-content style="margin: 0 16px; background: #141414; min-height: 50vh;">
             <div>
               <audio id="player" playsinline controls></audio>
             </div>
           </a-layout-content>
 
           <!-- 下面部分：文件选择和按钮 -->
-          <a-layout-content style="margin: 16px;">
+          <a-layout-content style="margin: 16px;min-height: 50vh;">
             <div>
               <input type="file" accept="audio/mp3" class="file-input w-full max-w-xs" @change="handleFileSelect">
             </div>
@@ -44,6 +44,7 @@
             </div>
           </a-layout-content>
         </a-col>
+        <div class="vertical-divider"></div>
         <!-- 右边部分：显示字幕 -->
         <a-col :span="12">
           <a-layout-content style="margin: 0 16px; padding: 16px; overflow: auto;">
@@ -81,6 +82,12 @@
 .highlighted {
   color: #ff0000;  /* 你可以选择你喜欢的颜色 */
   font-weight: bold;
+}
+.vertical-divider {
+  width: 1px;  /* 分割线的宽度 */
+  background-color: #cccccc;  /* 分割线的颜色 */
+  height: 100%;  /* 使分割线占据整个容器的高度 */
+  flex-shrink: 0;  /* 确保分割线不会缩小 */
 }
 
 
