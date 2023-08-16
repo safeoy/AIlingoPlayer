@@ -51,6 +51,11 @@
             <!-- 文件列表表格 -->
             <a-table :data-source="fileList">
                 <a-table-column title="文件名" dataIndex="name" key="name"></a-table-column>
+                <a-table-column title="字幕" dataIndex="subtitle" key="subtitle" v-slot="{ text }">
+                    <template v-if="text">
+                        <a :href="text" target="_blank">字幕</a>
+                    </template>
+                </a-table-column>
                 <a-table-column title="操作" key="action" v-slot="{ record }">
                     <template v-for="(action, index) in fileListActions" :key="index">
                         <a-button @click="this[action.action](record)">{{ action.text }}</a-button>
@@ -141,7 +146,7 @@ export default {
     return {
       lyrics: 'loading', // 存储歌词内容
       lyricsUrl:'',
-      collapsed:true,
+      collapsed:false,
       selectedKeys:[],
       file:'',
       fileUrl:'',
@@ -169,7 +174,8 @@ export default {
       ],
       fileListActions: [
           { text: '删除', action: 'handleDelete' },
-          { text: '播放', action: 'handlePlay' }
+          { text: '播放', action: 'handlePlay' },
+          { text: '生成字幕', action: 'generateSubtitleForFile' },
       ],
     };
   },
@@ -289,6 +295,60 @@ export default {
       audio.src = record.url;
       audio.play();
     },
+    async getFileFromBlobUrl(blobUrl) {
+        const response = await fetch(blobUrl);
+        const blob = await response.blob();
+        return new File([blob], "filename.mp3", { type: 'audio/mp3' });
+    },
+    async generateSubtitleForFile(record) {
+      const transcribe = (apiKey, file, language, response_format) => {
+          const url = 'https://api.openai.com/v1/audio/transcriptions'
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('model', 'whisper-1')
+          formData.append('response_format', response_format || 'verbose_json')
+          if (language) {
+              formData.append('language', language)
+          }
+
+          const headers = new Headers()
+          headers.append('Authorization', `Bearer ${apiKey}`)
+
+          return fetch(url, {
+              method: 'POST',
+              body: formData,
+              headers: headers
+          }).then(response => {
+              console.log(response)
+              // Automatically handle response format
+              if (response_format === 'json' || response_format === 'verbose_json') {
+                  return response.json()
+              } else {
+                  return response.text()
+              }
+          }).catch(error => console.error(error))
+      }
+
+      const file = await this.getFileFromBlobUrl(record.url);
+      console.log(record.url);
+      console.log(file.type);
+      const response = transcribe(this.apiKey, file, 'en', 'vtt')
+      response.then(transcription => {
+          // 这里简化字幕生成过程，你可能需要调用外部API或其他方法生成字幕
+          const subtitleContent = transcription; 
+
+          // 将字幕存储到浏览器的 storage
+          const blob = new Blob([subtitleContent], { type: 'text/plain' });
+          const subtitleURL = URL.createObjectURL(blob);
+
+          const fileIndex = this.fileList.findIndex(item => item.key === record.key);
+          if (fileIndex !== -1) {
+              this.fileList[fileIndex].subtitle = subtitleURL;
+          }
+      });
+      
+    }
+
   },
 };
 </script>
