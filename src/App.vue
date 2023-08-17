@@ -121,9 +121,20 @@ import { PieChartOutlined } from '@ant-design/icons-vue';
 import { UploadOutlined } from '@ant-design/icons-vue';
 import { FileOutlined } from '@ant-design/icons-vue';
 import { Button as AButton } from 'ant-design-vue';
+import { openDB } from 'idb';
 
 
 const player = new Plyr('#player', {captions: {active: true}});
+
+async function initDB() {
+  const db = await openDB('myAppDB', 1, {
+    upgrade(db) {
+      db.createObjectStore('files', { keyPath: 'id' });
+    },
+  });
+  return db;
+}
+
 
 export default {
   components: {
@@ -183,9 +194,19 @@ export default {
     apiKey(newValue) {
       localStorage.setItem('apiKey', newValue);
     },
+    fileList: {
+        handler(newFileList) {
+            localStorage.setItem('fileList', JSON.stringify(newFileList));
+        },
+        deep: true
+    },
   },
   created() {
     this.apiKey = localStorage.getItem('apiKey') || '';
+    const savedFileList = localStorage.getItem('fileList');
+    if (savedFileList) {
+        this.fileList = JSON.parse(savedFileList);
+    }
   },
   methods: {
     parseSubtitles() {
@@ -277,22 +298,29 @@ export default {
       
       return isCurrent;
     },
-    handleUpload(file) {
-      // 将文件存储到浏览器的 storage
-      const fileURL = URL.createObjectURL(file);
+    async handleUpload(file) {
+      const db = await initDB();
+      const fileId = Date.now().toString();
+      await db.put('files', {
+        id: fileId,
+        file: file,
+      });
       this.fileList.push({
         key: file.uid,
         name: file.name,
-        url: fileURL,
+        url: fileId, // 使用 fileId 作为URL
       });
       return false; // 阻止文件上传到服务器
     },
     handleDelete(record) {
       this.fileList = this.fileList.filter(item => item.key !== record.key);
     },
-    handlePlay(record) {
+    async handlePlay(record) {
+      const db = await initDB();
+      const fileEntry = await db.get('files', record.url); // 使用 fileId 从 idb 中获取文件
+      const blobURL = URL.createObjectURL(fileEntry.file);
       const audio = document.getElementById('player');
-      audio.src = record.url;
+      audio.src = blobURL;
       audio.play();
     },
     async getFileFromBlobUrl(blobUrl) {
@@ -329,9 +357,13 @@ export default {
           }).catch(error => console.error(error))
       }
 
-      const file = await this.getFileFromBlobUrl(record.url);
-      console.log(record.url);
+      const db = await initDB();
+      const fileEntry = await db.get('files', record.url); // 使用 fileId 从 idb 中获取文件
+      const blobURL = URL.createObjectURL(fileEntry.file);
+      console.log(blobURL);
       console.log(file.type);
+      const file = await this.getFileFromBlobUrl(blobURL);
+      
       const response = transcribe(this.apiKey, file, 'en', 'vtt')
       response.then(transcription => {
           // 这里简化字幕生成过程，你可能需要调用外部API或其他方法生成字幕
