@@ -32,6 +32,13 @@
             <div>
               <audio id="player" playsinline controls></audio>
             </div>
+            <div style="margin-bottom: 16px;">
+              <button class="btn" @click="toggleSingleCueMode">{{ singleCueMode ? '退出单句播放' : '进入单句播放' }}</button>
+              <button class="btn" @click="playPrevCue">上一句</button>
+              <button class="btn" @click="playNextCue">下一句</button>
+              <input type="number" v-model="playCount" min="1" max="5" class="input input-bordered w-full max-w-xs">
+              <span>设置播放次数 (0为无限)</span>
+            </div>
           </a-layout-content>
 
           <!-- 下面部分：文件选择和按钮 -->
@@ -68,7 +75,7 @@
         <a-col :span="12">
           <a-layout-content style="margin: 0 16px; padding: 16px; overflow: auto;">
             <p 
-              v-for="cue in cues" 
+              v-for="cue in cues.slice(0, currentCueIndex + 1)" 
               :key="cue.id"
               :class="{ 'highlighted': isCurrentCue(cue) }"
               @click="seekToCue(cue)"
@@ -139,10 +146,12 @@ export default {
       /* options */
     });
     //this.parseSubtitles();
+    this.player.on('timeupdate', this.updateSubtitle);
   },
   beforeDestroy() {
     // 销毁播放器实例
     this.player.destroy();
+    this.player.off('timeupdate', this.updateSubtitle);
   },
   data() {
     return {
@@ -152,11 +161,16 @@ export default {
       selectedKeys:[],
       file:'',
       fileUrl:'',
+      lock:false,
       apiKey: '',
       cues: [],
       currentSubtitle: 'loading',
       currentPlayTime: 0,
       fileList: [], // 存储文件列表
+      singleCueMode: true, // 是否处于单句播放模式
+      currentCueIndex: 0, // 当前播放的句子的索引
+      playCount: 3, // 播放次数
+      singleCuePlayCount: 0, // 当前句子已播放的次数
       columns: [ // 表格列的配置
         {
           title: '文件名',
@@ -214,13 +228,55 @@ export default {
       });
     },
     updateSubtitle() {
-      console.log("updateSubtitle:"+this.player.currentTime);
+      if (this.lock === true) {
+        return
+      }else{
+        this.lock = true
+      }
+      console.log("--------------------------------");
+      console.log("current time:"+this.player.currentTime);
+      console.log("current cue index:"+this.currentCueIndex);
+      console.log("current cue starttime:"+this.cues[this.currentCueIndex].startTime);
+      console.log("current cue endtime:"+this.cues[this.currentCueIndex].endTime);
+      console.log("singleCuePlayCount: "+ this.singleCuePlayCount);
+      // 如果当前处于单句播放模式
+      if ( (this.singleCueMode)  && (this.player.currentTime> this.cues[this.currentCueIndex].endTime) ){
+        // 如果设置为无限次播放，将播放器的当前时间设置为当前句的开始时间，以实现循环播放
+        if (this.playCount === 0 ) {
+          console.log("this.player.currentTime******************************0");
+          this.player.currentTime = this.cues[this.currentCueIndex].startTime;
+          this.lock = false
+          return
+        }
+
+        // 每次调用时，对当前句的播放次数进行递增
+        this.singleCuePlayCount++;
+        console.log("2");
+        
+        // 判断是否已达到用户设置的播放次数或设置为无限次播放
+        if (this.singleCuePlayCount === this.playCount) {
+            console.log("**************************3");
+            this.singleCuePlayCount = 0;
+        } else {
+            // 如果未达到设置的播放次数，将播放器的当前时间设置为当前句的开始时间，以实现循环播放
+            console.log("this.player.currentTime******************************4");
+            this.player.currentTime = this.cues[this.currentCueIndex].startTime;
+            this.lock = false
+            return
+        }
+      }
+
+      console.log("5");
       let currentTime = this.player.currentTime;
-      let currentCue = this.cues.find(cue => currentTime >= cue.startTime && currentTime <= cue.endTime);
-      console.log("currentCue:"+ currentCue.startTime);
-      console.log("currentCue:"+ currentCue.endTime);
-      console.log("currentCue:"+ currentCue.text);
-      this.currentSubtitle = currentCue ? currentCue.text : '';
+      let currentCue = this.cues.find(cue => currentTime >= cue.startTime && currentTime < cue.endTime);
+      if (currentCue) {
+        this.currentSubtitle = currentCue.text;
+        this.currentCueIndex = this.cues.indexOf(currentCue);
+      } else {
+        this.currentSubtitle = '';
+      }
+      this.lock = false
+      return
     },
     handleFileSelect(event) {
       this.file = event.target.files[0];
@@ -277,17 +333,38 @@ export default {
           this.parseSubtitles();
       });
     },
+    toggleSingleCueMode() {
+      this.singleCueMode = !this.singleCueMode;
+      if (!this.singleCueMode) {
+        this.currentCueIndex = -1;
+      }
+    },
+    
+    playPrevCue() {
+      if (this.currentCueIndex > 0) {
+        this.currentCueIndex--;
+        console.log("this.player.currentTime******************************playPrev")
+        this.player.currentTime = this.cues[this.currentCueIndex].startTime;
+        this.singleCuePlayCount = 0;
+      }
+    },
+    
+    playNextCue() {
+      if (this.currentCueIndex < this.cues.length - 1) {
+        this.currentCueIndex++;
+        console.log("this.player.currentTime******************************playNextCue")
+        this.player.currentTime = this.cues[this.currentCueIndex].startTime;
+        this.singleCuePlayCount = 0;
+      }
+    },
     seekToCue(cue) {
+      this.currentCueIndex = this.cues.indexOf(cue);
+      console.log("this.player.currentTime******************************seekToCue")
       this.player.currentTime = cue.startTime;
+      this.singleCuePlayCount = 0;
     },
     isCurrentCue(cue) {
-      let isCurrent = this.currentPlayTime >= cue.startTime && this.currentPlayTime <= cue.endTime;
-  
-      if (isCurrent) {
-        console.log('Current Cue:', cue.text);
-      }
-      
-      return isCurrent;
+      return this.currentCueIndex === this.cues.indexOf(cue);
     },
     async handleUpload(file) {
       const db = await initDB();
@@ -313,7 +390,6 @@ export default {
       const audio = document.getElementById('player');
       audio.src = blobURL;
 
-      console.log(record.subtitleID);
       const subtitlefileEntry = await db.get('files', record.subtitleID); // 使用 fileId 从 idb 中获取文件
       this.lyrics = subtitlefileEntry.file
       
