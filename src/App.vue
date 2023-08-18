@@ -51,9 +51,9 @@
             <!-- 文件列表表格 -->
             <a-table :data-source="fileList">
                 <a-table-column title="文件名" dataIndex="name" key="name"></a-table-column>
-                <a-table-column title="字幕" dataIndex="subtitle" key="subtitle" v-slot="{ text }">
-                    <template v-if="text">
-                        <a :href="text" target="_blank">字幕</a>
+                <a-table-column title="字幕" dataIndex="subtitleID" key="subtitleID" v-slot="{ text, record }">
+                    <template v-if="record.subtitleID">
+                        <a-button @click="viewSubtitle(record.subtitleID)">查看字幕</a-button>
                     </template>
                 </a-table-column>
                 <a-table-column title="操作" key="action" v-slot="{ record }">
@@ -64,7 +64,6 @@
             </a-table>
           </a-layout-content>
         </a-col>
-        <div class="vertical-divider"></div>
         <!-- 右边部分：显示字幕 -->
         <a-col :span="12">
           <a-layout-content style="margin: 0 16px; padding: 16px; overflow: auto;">
@@ -103,14 +102,6 @@
   color: #ff0000;  /* 你可以选择你喜欢的颜色 */
   font-weight: bold;
 }
-.vertical-divider {
-  width: 1px;  /* 分割线的宽度 */
-  background-color: #cccccc;  /* 分割线的颜色 */
-  height: 100%;  /* 使分割线占据整个容器的高度 */
-  flex-shrink: 0;  /* 确保分割线不会缩小 */
-}
-
-
 </style>
 
 <script>
@@ -321,12 +312,31 @@ export default {
       const blobURL = URL.createObjectURL(fileEntry.file);
       const audio = document.getElementById('player');
       audio.src = blobURL;
+
+      console.log(record.subtitleID);
+      const subtitlefileEntry = await db.get('files', record.subtitleID); // 使用 fileId 从 idb 中获取文件
+      this.lyrics = subtitlefileEntry.file
+      
       audio.play();
+      this.parseSubtitles()
     },
     async getFileFromBlobUrl(blobUrl) {
         const response = await fetch(blobUrl);
         const blob = await response.blob();
         return new File([blob], "filename.mp3", { type: 'audio/mp3' });
+    },
+    async viewSubtitle(subtitleID) {
+      const db = await initDB();
+      console.log(subtitleID);
+      const fileEntry = await db.get('files', subtitleID); // 使用 fileId 从 idb 中获取文件
+      if (typeof fileEntry.file === 'string') {
+          let blob = new Blob([fileEntry.file], { type: 'text/plain' });
+          const blobURL = URL.createObjectURL(blob);
+          console.log(blobURL);
+          window.open(blobURL, '_blank');
+      } else {
+          console.error("Unexpected file type");
+      }
     },
     async generateSubtitleForFile(record) {
       const transcribe = (apiKey, file, language, response_format) => {
@@ -361,23 +371,22 @@ export default {
       const fileEntry = await db.get('files', record.url); // 使用 fileId 从 idb 中获取文件
       const blobURL = URL.createObjectURL(fileEntry.file);
       console.log(blobURL);
-      console.log(file.type);
       const file = await this.getFileFromBlobUrl(blobURL);
       
-      const response = transcribe(this.apiKey, file, 'en', 'vtt')
-      response.then(transcription => {
-          // 这里简化字幕生成过程，你可能需要调用外部API或其他方法生成字幕
-          const subtitleContent = transcription; 
+      const transcription = await transcribe(this.apiKey, file, 'en', 'vtt');
+      const subtitleContent = transcription;
+      console.log(subtitleContent);
 
-          // 将字幕存储到浏览器的 storage
-          const blob = new Blob([subtitleContent], { type: 'text/plain' });
-          const subtitleURL = URL.createObjectURL(blob);
-
-          const fileIndex = this.fileList.findIndex(item => item.key === record.key);
-          if (fileIndex !== -1) {
-              this.fileList[fileIndex].subtitle = subtitleURL;
-          }
+      const fileId = Date.now().toString();
+      await db.put('files', {
+        id: fileId,
+        file: subtitleContent,
       });
+
+      const fileIndex = this.fileList.findIndex(item => item.key === record.key);
+      if (fileIndex !== -1) {
+          this.fileList[fileIndex].subtitleID = fileId;
+      }
       
     }
 
